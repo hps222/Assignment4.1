@@ -1,0 +1,242 @@
+1. Histogram for all variables in a dataset mtcars. Write a program to create histograms for all columns.
+
+solution:
+
+library(purrr)
+library(tidyr)
+library(ggplot2)
+
+mtcars %>%
+  keep(is.numeric) %>%                  # Keep only numeric columns
+  gather() %>%                          # Convert to key-value pairs
+  ggplot(aes(value)) +                  # Plot the values
+  facet_wrap(~ key, scales = "free") +  # In separate panels
+  geom_histogram()                      # as histogram
+
+
+2. Check the probability distribution of all variables in mtcars
+
+Solution:
+
+cars <- mtcars
+print(head(cars))
+column_means <- colMeans(cars)         # Get the means of each column
+print(column_means)                    # Check means
+center_matrix <- matrix( rep(column_means, nrow(cars)),   # Repeat the column means
+                         nrow=nrow(cars),
+                         ncol=ncol(cars),
+                         byrow = TRUE)
+# Construct row by row
+centered <- cars - center_matrix	# Subtract column means
+print( head( centered ))		# Check the new data set
+print(colMeans(centered))		# Check the new column means to confirm they are 0
+sd(centered$mpg)
+column_sds <- apply(centered,		# A matrix or data frame
+                    MARGIN = 2,		# Operate on rows(1) or columns(2)
+                    FUN = sd)		# Function to apply
+print(column_sds)			# Check standard deviations
+scale_matrix <- matrix( rep(column_sds, nrow(cars)),      # Repeat the column sds
+                        nrow=nrow(cars),
+                        ncol=ncol(cars),
+                        byrow = TRUE)
+centered_scaled <- centered/scale_matrix	# Divide by column sds to scale the data
+summary(centered_scaled)			# Confirm that variables are on similar scales
+auto_scaled <- scale(cars,			# Numeric data object
+                     center=TRUE,		# Center the data?
+                     scale=TRUE)		# Scale the data?
+summary(auto_scaled)		# Check the auto scaled data
+normally_distributed <- rnorm(10000)		# Generate normally distributed data
+hist(normally_distributed, breaks=30)		# Create a histogram of the distribution
+skewed_right <- rexp(10000, 0.5)		# Generate skewed data
+hist(skewed_right, breaks=50)			# Create a histogram of the distribution
+log_transformed <- log(skewed_right+1)
+hist(log_transformed, breaks=50)
+cor(cars[,1:6])			# Check the pairwise correlations of 6 variables
+pairs(cars[,1:6])
+
+require(graphics)
+pairs(mtcars, main = "mtcars data", gap = 1/4)
+coplot(mpg ~ disp | as.factor(cyl), data = mtcars,
+       panel = panel.smooth, rows = 1)
+## possibly more meaningful, e.g., for summary() or bivariate plots:
+mtcars2 <- within(mtcars, {
+  vs <- factor(vs, labels = c("V", "S"))
+  am <- factor(am, labels = c("automatic", "manual"))
+  cyl  <- ordered(cyl)
+  gear <- ordered(gear)
+  carb <- ordered(carb)
+})
+summary(mtcars2)
+
+#### generate subset: automatic and manual cars ####
+cars_auto = subset(mtcars, am == 0)
+cars_manu = subset(mtcars, am == 1)
+# dimensions
+dim(mtcars)
+dim(cars_auto); dim(cars_manu)
+mean(cars_auto$mpg); mean(cars_manu$mpg)
+sd(cars_auto$mpg); sd(cars_manu$mpg)
+(mean(cars_manu$mpg) - mean(cars_auto$mpg))/mean(cars_auto$mpg)
+#### mpg plots ####
+par(mfrow = c(2, 1))
+hist(cars_auto$mpg, main = "Distribution mpg - automatic transmission", xlab = "mpg")
+abline(v = mean(cars_auto$mpg), col = "red")
+hist(cars_manu$mpg, main = "Distribution mpg - manual transmission", xlab = "mpg")
+abline(v = mean(cars_manu$mpg), col = "red")
+t.test(cars_manu$mpg, cars_auto$mpg, paired = F, var.equal = F)
+
+#### Permutation test ####
+# Shuffling the am groups and calculate the mean
+
+# get target variable and group vectors
+y = mtcars$mpg
+group = mtcars$am
+y; group
+# baseline group means and difference
+baselineMeans = tapply(mtcars$mpg, mtcars$am, mean)
+baselineMeansDiff = baselineMeans[2] - baselineMeans[1]
+
+tStat = function(w, g) mean(w[g == 1]) - mean(w[g == 0])
+observedDiff = tStat(y, group)
+# check if function works - should be 0:
+baselineMeansDiff - observedDiff
+# execute shuffle:
+permutations = sapply(1:100000, function(i) tStat(y, sample(group)))
+# shuffle experiment results plots:
+par(mfrow = c(2, 1), mar = c(4, 4, 2, 2))
+hist(permutations, main = "Distribution of shuffled group mean differences") # distribution of difference of averages of permuted groups
+plot(permutations, type = "b", main = "Shuffled group mean trials", xlab = "trial", ylab = "shuffled group mean differences", ylim = c(-14, 14))
+abline(h = observedDiff, col = "red", lwd = 3)
+mean(permutations > observedDiff)
+#### generate subset: automatic and manual cars ####
+cars_auto = subset(mtcars, am == 0)
+cars_manu = subset(mtcars, am == 1)
+
+#### Visual inspection of all covariates ####
+pairs(mtcars)
+#### 4 bivariate analysis: hp / wt / drat / disp ####
+par(mfrow = c(2, 2), mar = c(2, 3, 2, 3))
+
+# plot1
+with(mtcars, plot(hp, mpg, type = "n", main = "mpg vs. hp - by transmission type")) # no data
+with(cars_auto, points(hp, mpg, col = "red", pch = 20))
+with(cars_manu, points(hp, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+model1_auto = lm(mpg ~ hp, data = cars_auto)
+model1_manu = lm(mpg ~ hp, data = cars_manu)
+abline(model1_auto, col = "red", lwd = 2)
+abline(model1_manu, col = "blue", lwd = 2)
+abline(v = 175, lty = 2)
+
+# plot2
+with(mtcars, plot(wt, mpg, type = "n", main = "mpg vs. weight - by transmission type")) # no data
+with(cars_auto, points(wt, mpg, col = "red", pch = 20))
+with(cars_manu, points(wt, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+abline(v = 3.2, lty = 2)
+
+# plot 3
+with(mtcars, plot(drat, mpg, type = "n", main = "mpg vs. drat - by transmission type")) # no data
+with(cars_auto, points(drat, mpg, col = "red", pch = 20))
+with(cars_manu, points(drat, mpg, col = "blue", pch = 20))
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+model2_auto = lm(mpg ~ drat, data = cars_auto)
+model2_manu = lm(mpg ~ drat, data = cars_manu)
+abline(model2_auto, col = "red", lwd = 2)
+abline(model2_manu, col = "blue", lwd = 2)
+abline(v = 175, lty = 2)
+
+# plot 4
+with(mtcars, plot(disp, mpg, type = "n", main = "mpg vs. disp - by transmission type")) # no data
+with(cars_auto, points(disp, mpg, col = "red", pch = 20))
+with(cars_manu, points(disp, mpg, col = "blue", pch = 20))
+
+
+
+legend("topright", pch = 20, col = c("red", "blue"), legend = c("auto", "manu")) # add legend
+labels = with(mtcars, paste(as.character(disp), as.character(mpg), sep = ",")) # generate point labels
+with(mtcars, text(disp, mpg, labels = labels, cex = 0.7, pos = 2))
+abline(v = 167.6, lty = 2)
+### analyse covariance matrix for regressor selection:
+z <- cor(mtcars)
+require(lattice)
+# only am
+data = mtcars
+data$am = as.factor(data$am)
+model2 = lm(mpg ~ am, data = data)
+
+# get results
+summary(model2)
+#### model selection using leaps ####
+library(leaps)
+data = mtcars
+data$log_mpg = log(data$mpg) # add log of y
+#### method 1. best fit ####
+regfit.full = regsubsets(log_mpg ~. , data = data, nvmax = 10)
+reg.summary = summary(regfit.full)
+reg.summary
+# how I select the optimal number of variables?
+plot(reg.summary$cp, xlab = "Number of variables", ylab = "cp", type = "b")
+regfit.fwd = regsubsets(log_mpg ~ ., data = data, nvmax = 10, method = "forward")
+summary(regfit.fwd)
+plot(regfit.fwd, scale = "Cp")
+#### lm with all variables / no split ####
+# prepare data
+data = mtcars
+data$am = as.factor(data$am)
+
+model1 = lm(mpg ~ ., data = data)
+
+# get results
+summary(model1)
+# plot residual analysis
+par(mfrow = c(2, 2))
+plot(model1)
+# plot hist
+par(mfrow = c(1, 1))
+hist(model1$residuals)# normality test on residuals
+shapiro.test(model1$residuals)
+
+
+
+
+3. Write a program to create boxplot for all variables.
+
+solutions:
+
+Method 1
+
+library(purrr)
+library(tidyr)
+library(ggplot2)
+
+mtcars %>%
+  keep(is.numeric) %>%                  # Keep only numeric columns
+  gather() %>%                          # Convert to key-value pairs
+  ggplot(aes(key,value)) +              # Plot the values
+  facet_wrap(~ key, scales = "free") +  # In separate panels
+  geom_boxplot()                        # as boxplot
+
+Method 2
+
+library(ggplot2)
+library(car)
+library(corrgram)
+data=mtcars
+name=mtcars
+mtcars$am <- as.factor(mtcars$am)
+levels(mtcars$am) <- c("Automatic", "Manual")
+head(mtcars)
+summary(mtcars)
+describe(mtcars)
+boxplot(mtcars$mpg,mtcars$cyl,mtcars$disp,mtcars$hp,mtcars$drat,mtcars$wt,mtcars$qsec,mtcars$vs,mtcars$am,mtcars$gear,mtcars$carb,col = "blue")
+
+
+Method 3
+
+library(psych)
+describe(mtcars)
+boxplot(mtcars$mpg,mtcars$cyl,mtcars$disp,mtcars$hp,mtcars$drat,mtcars$wt,mtcars$qsec,mtcars$vs,mtcars$am,mtcars$gear,mtcars$carb,col = "blue")
+
+
+
